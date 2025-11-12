@@ -1,15 +1,16 @@
 {
   "version": 2,
+  "name": "ju-marketplace-bot",
   "builds": [
     {
-      "src": "api.js",
+      "src": "bot.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/api.js"
+      "dest": "bot.js",
+      "methods": ["GET", "POST", "OPTIONS"]
     }
-  ]
-}
+  ],
