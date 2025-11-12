@@ -1643,6 +1643,7 @@ async function handleCancel(msg) {
 }
 
 // Main message handler
+    // Main message handler
 async function handleMessage(msg) {
   const text = msg.text;
   
@@ -1712,6 +1713,7 @@ async function handleMessage(msg) {
     } else if (userStates.get(msg.from.id)?.state === 'awaiting_user_id_for_message') {
       await handleUserIdForMessage(msg);
     } else {
+      // Handle both product creation and contact messages
       await handleRegularMessage(msg);
       await handleContactMessage(msg);
     }
