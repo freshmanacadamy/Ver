@@ -2,10 +2,10 @@
   "name": "ju-marketplace-bot",
   "version": "2.0.0",
   "description": "Jimma University Marketplace Telegram Bot",
-  "main": "bot.js",
+  "main": "api.js",
   "scripts": {
-    "start": "node bot.js",
-    "dev": "node bot.js",
+    "start": "node api.js",
+    "dev": "node api.js",
     "vercel-build": "echo 'No build needed for Telegram bot'"
   },
   "keywords": [
