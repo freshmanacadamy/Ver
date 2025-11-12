@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "ju-marketplace-bot",
   "builds": [
     {
       "src": "bot.js",
@@ -10,7 +9,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "bot.js",
-      "methods": ["GET", "POST", "OPTIONS"]
+      "dest": "bot.js"
     }
-  ],
+  ]
+}
