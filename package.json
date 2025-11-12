@@ -1,7 +1,7 @@
 {
-  "name": "telegram-bot-vercel",
+  "name": "ju-marketplace-bot",
   "version": "1.0.0",
-  "description": "Simple Telegram bot for Vercel",
+  "description": "Jimma University Marketplace Bot for Vercel",
   "main": "api.js",
   "scripts": {
     "dev": "vercel dev"
