@@ -72,9 +72,11 @@ function getTimeAgo(date) {
 
 // Format username for Markdown safely (wrap in code to preserve underscores and avoid Markdown italics)
 function formatUsernameForMarkdown(user) {
-  if (!user || !user.username) return 'No username';
-  // Wrap username in backticks so underscores show literally in Markdown
-  return '`@' + user.username + '`';
+  if (!user) return 'No username';
+  if (user.username) {
+    return '`@' + user.username + '`';
+  }
+  return user.firstName || 'Seller';
 }
 
 // Maintenance mode handler
@@ -130,7 +132,7 @@ async function handleStart(msg, startParam = null) {
   if (!users.has(userId)) {
     users.set(userId, {
       telegramId: userId,
-      username: msg.from.username || '',
+      username: msg.from.username || null,  // Store null instead of empty string
       firstName: msg.from.first_name,
       lastName: msg.from.last_name || '',
       joinedAt: new Date(),
@@ -185,7 +187,7 @@ async function handleBuyNowDeepLink(chatId, productId) {
         `🏷️ *${product.title}*\n` +
         `💰 *Price:* ${product.price} ETB\n` +
         `📦 *Category:* ${product.category}\n` +
-        `👤 *Seller:* ${sellerUsername}\n` +
+`👤 *Seller:* ${formatUsernameForMarkdown(seller)}\n` +
         `${product.description ? `📝 *Description:* ${product.description}\n` : ''}\n` +
         `📍 *Campus Meetup Recommended*\n\n` +
         `💬 *Contact the seller directly to purchase!*`,
@@ -205,7 +207,7 @@ async function handleBuyNowDeepLink(chatId, productId) {
       `🏷️ *${product.title}*\n` +
       `💰 *Price:* ${product.price} ETB\n` +
       `📦 *Category:* ${product.category}\n` +
-      `👤 *Seller:* ${sellerUsername}\n` +
+`👤 *Seller:* ${formatUsernameForMarkdown(seller)}\n` +
       `${product.description ? `📝 *Description:* ${product.description}\n` : ''}\n` +
       `📍 *Campus Meetup Recommended*\n\n` +
       `💬 *Contact the seller directly to purchase!*`,
@@ -270,7 +272,7 @@ async function handleBrowse(msg) {
           caption: `🏷️ *${product.title}*\n\n` +
                    `💰 *Price:* ${product.price} ETB\n` +
                    `📦 *Category:* ${product.category}\n` +
-                   `👤 *Seller:* ${seller?.firstName || 'JU Student'}\n` +
+`👤 *Seller:* ${formatUsernameForMarkdown(seller)}\n` +
                    `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                    `\n📍 *Campus Meetup*`,
           parse_mode: 'Markdown',
@@ -281,7 +283,7 @@ async function handleBrowse(msg) {
           `🏷️ *${product.title}*\n\n` +
           `💰 *Price:* ${product.price} ETB\n` +
           `📦 *Category:* ${product.category}\n` +
-          `👤 *Seller:* ${seller?.firstName || 'JU Student'}\n` +
+`👤 *Seller:* ${formatUsernameForMarkdown(seller)}\n` +
           `${product.description ? `📝 *Description:* ${product.description}\n` : ''}`,
           { parse_mode: 'Markdown', reply_markup: browseKeyboard.reply_markup }
         );
@@ -291,7 +293,7 @@ async function handleBrowse(msg) {
         `🏷️ *${product.title}*\n\n` +
         `💰 *Price:* ${product.price} ETB\n` +
         `📦 *Category:* ${product.category}\n` +
-        `👤 *Seller:* ${seller?.firstName || 'JU Student'}\n` +
+`👤 *Seller:* ${formatUsernameForMarkdown(seller)}\n` +
         `${product.description ? `📝 *Description:* ${product.description}\n` : ''}`,
         { parse_mode: 'Markdown', reply_markup: browseKeyboard.reply_markup }
       );
@@ -642,7 +644,7 @@ async function completeProductCreation(chatId, userId, userState, category, call
   const product = {
     id: productIdCounter++,
     sellerId: userId,
-    sellerUsername: user.username || '',
+    sellerUsername: user.username || user.firstName || 'Seller',  // Use name as fallback
     title: userState.productData.title,
     description: userState.productData.description || '',
     price: userState.productData.price,
