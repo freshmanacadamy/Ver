@@ -21,7 +21,7 @@ if (!BOT_TOKEN) {
 
 // Initialize bot
 // NOTE: Using TelegramBot without polling; webhook updates are handled by Vercel handler below.
-const bot = new TelegramBot(BOT_TOKEN);
+const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 
 // In-memory storage (consider moving to a persistent DB for production)
 const users = new Map();
@@ -269,9 +269,9 @@ async function handleBrowse(msg) {
   );
 
   for (const product of approvedProducts) {
-    const seller = users.get(product.sellerId);
-
-    const buyNowUrl = `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
+    const seller = users.get(product.sellerId) || {};
+    const sellerUsername = product.sellerUsername || seller.username || '';
+    const buyNowUrl = sellerUsername ? `https://t.me/${sellerUsername}` : `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
 
     const browseKeyboard = {
       reply_markup: {
@@ -632,35 +632,37 @@ case 'awaiting_product_description':
 
 case 'awaiting_seller_username':
   try {
-    // Validate and clean username
+    if (!text || !text.trim()) {
+      await bot.sendMessage(chatId, '❌ Please enter your Telegram username (without @).');
+      return;
+    }
+
     let username = text.trim();
-    
-    // Remove @ if user included it
+
+    // Remove @ if included
     if (username.startsWith('@')) {
       username = username.substring(1);
     }
-    
-    // Remove spaces and convert to lowercase
-    username = username.replace(/\s+/g, '').toLowerCase();
-    
-    // Basic validation
-    if (!username || username.length < 3) {
-      await bot.sendMessage(chatId, 
-        '❌ Please enter a valid username (minimum 3 characters, no spaces).\n\n' +
-        'Example: your_username'
+
+    // Normalize: remove spaces
+    username = username.replace(/\s+/g, '');
+
+    // Basic validation (Telegram usernames: 3-32 chars, letters/numbers/underscores)
+    if (username.length < 3 || username.length > 32 || /[^a-zA-Z0-9_]/.test(username)) {
+      await bot.sendMessage(chatId,
+        '❌ Invalid username. Use 3-32 chars; letters, numbers, and underscores only. No spaces.'
       );
       return;
     }
-    
-    if (username.length > 30) {
-      await bot.sendMessage(chatId, '❌ Username too long. Maximum 30 characters.');
-      return;
-    }
-    
+
     // Save the manually entered username
     userState.productData.sellerUsername = username;
+    userState.state = 'awaiting_product_category';
+    userStates.set(userId, userState);
+
+    // Move to category selection
     await selectProductCategory(chatId, userId, userState);
-    
+
   } catch (error) {
     console.error('Username processing error:', error);
     await bot.sendMessage(chatId, '❌ Error processing username. Please try again.');
@@ -774,7 +776,7 @@ async function notifyAdminsAboutNewProduct(product) {
                      `🏷️ *Title:* ${product.title}\n` +
                      `💰 *Price:* ${product.price}\n` +
                      `📂 *Category:* ${product.category}\n` +
-`👤 *Seller:* @${product.sellerUsername}\n` +
+`${product.sellerUsername ? `${product.sellerUsername ? `👤 *Seller:* @${product.sellerUsername}` : ''}\n` : ''}` +
                      `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                      `⏰ *Submitted:* ${product.createdAt.toLocaleString()}\n\n` +
                      `*Quick Actions Below ↓*`,
@@ -787,7 +789,7 @@ async function notifyAdminsAboutNewProduct(product) {
             `🏷️ *Title:* ${product.title}\n` +
             `💰 *Price:* ${product.price}\n` +
             `📂 *Category:* ${product.category}\n` +
-`👤 *Seller:* @${product.sellerUsername}\n` +
+`${product.sellerUsername ? `${product.sellerUsername ? `👤 *Seller:* @${product.sellerUsername}` : ''}\n` : ''}` +
             `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
             `⏰ *Submitted:* ${product.createdAt.toLocaleString()}\n\n` +
             `*Click buttons to approve/reject:*`,
@@ -1022,8 +1024,9 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
 
     // Post to channel
     try {
-      const seller = users.get(product.sellerId);
-      const buyNowUrl = `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
+      const seller = users.get(product.sellerId) || {};
+      const sellerUsername = product.sellerUsername || seller.username || '';
+      const buyNowUrl = sellerUsername ? `https://t.me/${sellerUsername}` : `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
 
       const channelKeyboard = {
         reply_markup: {
@@ -1038,7 +1041,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
           caption: `🏷️ *${product.title}*\n\n` +
                    `💰 *Price:* ${product.price} ETB\n` +
                    `📦 *Category:* ${product.category}\n` +
-`👤 *Seller:* @${product.sellerUsername}\n` +
+`${product.sellerUsername ? `${product.sellerUsername ? `👤 *Seller:* @${product.sellerUsername}` : ''}\n` : ''}` +
                    `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                    `\n📍 *Jimma University Campus*` +
                    `\n\n🛒 Buy via @${getBotUsernameForLink()}`,
@@ -1050,7 +1053,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
           `🏷️ *${product.title}*\n\n` +
           `💰 *Price:* ${product.price} ETB\n` +
           `📦 *Category:* ${product.category}\n` +
-`👤 *Seller:* @${product.sellerUsername}\n` +
+`${product.sellerUsername ? `${product.sellerUsername ? `👤 *Seller:* @${product.sellerUsername}` : ''}\n` : ''}` +
           `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
           `\n📍 *Jimma University Campus*` +
           `\n\n🛒 Buy via @${getBotUsernameForLink()}`,
