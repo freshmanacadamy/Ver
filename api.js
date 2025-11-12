@@ -161,7 +161,7 @@ async function handleBuyNowDeepLink(chatId, productId) {
   }
 
   const seller = users.get(product.sellerId);
-  const sellerUsername = formatUsernameForMarkdown(seller);
+  const sellerUsername = product.sellerUsername ? `@${product.sellerUsername}` : formatUsernameForMarkdown(seller);
 
   try {
     if (product.images && product.images.length > 0) {
@@ -318,12 +318,12 @@ async function handleSell(msg) {
     productData: {}
   });
 
-  await bot.sendMessage(chatId,
-    `🛍️ *Sell Your Item - Step 1/4*\n\n` +
-    `📸 *Send Product Photo*\n\n` +
-    `Please send ONE photo of your item.`,
-    { parse_mode: 'Markdown' }
-  );
+await bot.sendMessage(chatId,
+  `🛍️ *Sell Your Item - Step 1/5*\n\n` +
+  `📸 *Send Product Photo*\n\n` +
+  `Please send ONE photo of your item.`,
+  { parse_mode: 'Markdown' }
+);
 }
 
 // Handle photo upload
@@ -588,19 +588,69 @@ async function handleRegularMessage(msg) {
         }
         break;
 
-      case 'awaiting_product_description':
-        try {
-          if (text === '/skip') {
-            userState.productData.description = 'No description provided';
-          } else {
-            userState.productData.description = text;
-          }
-          await selectProductCategory(chatId, userId, userState);
-        } catch (error) {
-          console.error('Description processing error:', error);
-          await bot.sendMessage(chatId, '❌ Error processing description. Please try again.');
-        }
-        break;
+case 'awaiting_product_description':
+  try {
+    if (text === '/skip') {
+      userState.productData.description = 'No description provided';
+    } else {
+      userState.productData.description = text;
+    }
+    userState.state = 'awaiting_seller_username';
+    userStates.set(userId, userState);
+    
+    await bot.sendMessage(chatId,
+      `✅ Description saved!\n\n` +
+      `👤 *Step 5/5 - Your Telegram Username*\n\n` +
+      `Please enter your Telegram username:\n\n` +
+      `• Without @ symbol\n` +
+      `• Example: your_username\n` +
+      `• Example: john_doe\n` +
+      `• Example: mi_hdj_jdu\n\n` +
+      `*This will be shown to buyers when they click "Buy Now"*`,
+      { parse_mode: 'Markdown' }
+    );
+  } catch (error) {
+    console.error('Description processing error:', error);
+    await bot.sendMessage(chatId, '❌ Error processing description. Please try again.');
+  }
+  break;
+
+case 'awaiting_seller_username':
+  try {
+    // Validate and clean username
+    let username = text.trim();
+    
+    // Remove @ if user included it
+    if (username.startsWith('@')) {
+      username = username.substring(1);
+    }
+    
+    // Remove spaces and convert to lowercase
+    username = username.replace(/\s+/g, '').toLowerCase();
+    
+    // Basic validation
+    if (!username || username.length < 3) {
+      await bot.sendMessage(chatId, 
+        '❌ Please enter a valid username (minimum 3 characters, no spaces).\n\n' +
+        'Example: your_username'
+      );
+      return;
+    }
+    
+    if (username.length > 30) {
+      await bot.sendMessage(chatId, '❌ Username too long. Maximum 30 characters.');
+      return;
+    }
+    
+    // Save the manually entered username
+    userState.productData.sellerUsername = username;
+    await selectProductCategory(chatId, userId, userState);
+    
+  } catch (error) {
+    console.error('Username processing error:', error);
+    await bot.sendMessage(chatId, '❌ Error processing username. Please try again.');
+  }
+  break;
     }
   } catch (error) {
     console.error('Product creation error:', error);
@@ -641,19 +691,20 @@ async function completeProductCreation(chatId, userId, userState, category, call
   const user = users.get(userId);
 
   // Create product
-  const product = {
-    id: productIdCounter++,
-    sellerId: userId,
-    sellerUsername: user.username || user.firstName || 'Seller',  // Use name as fallback
-    title: userState.productData.title,
-    description: userState.productData.description || '',
-    price: userState.productData.price,
-    category: category,
-    images: userState.productData.images || [],
-    status: 'pending',
-    createdAt: new Date(),
-    approvedBy: null
-  };
+// Create product
+const product = {
+  id: productIdCounter++,
+  sellerId: userId,
+  sellerUsername: userState.productData.sellerUsername, // Use manually entered username
+  title: userState.productData.title,
+  description: userState.productData.description || '',
+  price: userState.productData.price,
+  category: category,
+  images: userState.productData.images || [],
+  status: 'pending',
+  createdAt: new Date(),
+  approvedBy: null
+};
 
   products.set(product.id, product);
   userStates.delete(userId);
@@ -708,7 +759,7 @@ async function notifyAdminsAboutNewProduct(product) {
                      `🏷️ *Title:* ${product.title}\n` +
                      `💰 *Price:* ${product.price}\n` +
                      `📂 *Category:* ${product.category}\n` +
-                     `👤 *Seller:* ${seller?.firstName || 'Student'} (${formatUsernameForMarkdown(seller)})\n` +
+`👤 *Seller:* @${product.sellerUsername}\n` +
                      `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                      `⏰ *Submitted:* ${product.createdAt.toLocaleString()}\n\n` +
                      `*Quick Actions Below ↓*`,
@@ -721,7 +772,7 @@ async function notifyAdminsAboutNewProduct(product) {
             `🏷️ *Title:* ${product.title}\n` +
             `💰 *Price:* ${product.price}\n` +
             `📂 *Category:* ${product.category}\n` +
-            `👤 *Seller:* ${seller?.firstName || 'Student'} (${formatUsernameForMarkdown(seller)})\n` +
+`👤 *Seller:* @${product.sellerUsername}\n` +
             `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
             `⏰ *Submitted:* ${product.createdAt.toLocaleString()}\n\n` +
             `*Click buttons to approve/reject:*`,
@@ -972,7 +1023,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
           caption: `🏷️ *${product.title}*\n\n` +
                    `💰 *Price:* ${product.price} ETB\n` +
                    `📦 *Category:* ${product.category}\n` +
-                   `👤 *Seller:* ${seller?.firstName || 'Seller'} (${formatUsernameForMarkdown(seller)})\n` +
+`👤 *Seller:* @${product.sellerUsername}\n` +
                    `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                    `\n📍 *Jimma University Campus*` +
                    `\n\n🛒 Buy via @${bot.options.username}`,
@@ -984,7 +1035,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
           `🏷️ *${product.title}*\n\n` +
           `💰 *Price:* ${product.price} ETB\n` +
           `📦 *Category:* ${product.category}\n` +
-          `👤 *Seller:* ${seller?.firstName || 'Seller'} (${formatUsernameForMarkdown(seller)})\n` +
+`👤 *Seller:* @${product.sellerUsername}\n` +
           `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
           `\n📍 *Jimma University Campus*` +
           `\n\n🛒 Buy via @${bot.options.username}`,
