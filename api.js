@@ -488,6 +488,7 @@ async function handleStatus(msg) {
 }
 
 // Handle regular messages for product creation
+// Handle regular messages for product creation
 async function handleRegularMessage(msg) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -499,11 +500,16 @@ async function handleRegularMessage(msg) {
   try {
     switch (userState.state) {
       case 'awaiting_product_title':
-        userState.productData.title = text;
+        if (!text || text.trim() === '') {
+          await bot.sendMessage(chatId, '❌ Please enter a product title.');
+          return;
+        }
+        userState.productData.title = text.trim();
         userState.state = 'awaiting_product_price';
         userStates.set(userId, userState);
         
         await bot.sendMessage(chatId,
+          `✅ Title set: "${text.trim()}"\n\n` +
           `💰 *Step 3/4 - Product Price*\n\n` +
           `Enter the price in ETB:\n\n` +
           `Example: 1500`,
@@ -512,40 +518,88 @@ async function handleRegularMessage(msg) {
         break;
         
       case 'awaiting_product_price':
-        if (!isNaN(text) && parseInt(text) > 0) {
-          userState.productData.price = parseInt(text);
+        try {
+          // Validate user state
+          if (!userState.productData) {
+            await bot.sendMessage(chatId, '❌ Session expired. Please start over with /sell');
+            userStates.delete(userId);
+            return;
+          }
+          
+          // Validate input
+          if (!text || text.trim() === '') {
+            await bot.sendMessage(chatId, '❌ Please enter a price amount.');
+            return;
+          }
+          
+          // Clean and validate price
+          const cleanText = text.trim().replace(/[^\d]/g, '');
+          const price = parseInt(cleanText);
+          
+          if (isNaN(price) || price <= 0) {
+            await bot.sendMessage(chatId, 
+              '❌ Please enter a valid price (numbers only).\n\n' +
+              'Examples:\n' +
+              '• 1500\n' +
+              '• 500\n' +
+              '• 7500'
+            );
+            return;
+          }
+          
+          if (price > 1000000) { // Sanity check
+            await bot.sendMessage(chatId, '❌ Price seems too high. Please enter a reasonable amount.');
+            return;
+          }
+          
+          // Update state
+          userState.productData.price = price;
           userState.state = 'awaiting_product_description';
           userStates.set(userId, userState);
           
+          // Ask for description
           await bot.sendMessage(chatId,
+            `✅ Price set: ${price} ETB\n\n` +
             `📝 *Step 4/4 - Product Description*\n\n` +
             `Add a description (optional):\n\n` +
             `• Condition (New/Used)\n` +
-            `• Features\n` +
-            `• Reason for selling\n\n` +
-            `Type /skip to skip description`,
+            `• Features/Specifications\n` +
+            `• Reason for selling\n` +
+            `• Any defects or issues\n\n` +
+            `*Type /skip to skip description*`,
             { parse_mode: 'Markdown' }
           );
-        } else {
-          await bot.sendMessage(chatId, '❌ Please enter a valid price (numbers only).');
+          
+        } catch (error) {
+          console.error('Price processing error:', error);
+          await bot.sendMessage(chatId, 
+            '❌ Sorry, there was an error processing the price. Please enter numbers only.'
+          );
         }
         break;
         
       case 'awaiting_product_description':
-        if (text === '/skip') {
-          userState.productData.description = '';
+        try {
+          if (text === '/skip') {
+            userState.productData.description = 'No description provided';
+          } else {
+            userState.productData.description = text;
+          }
           await selectProductCategory(chatId, userId, userState);
-        } else {
-          userState.productData.description = text;
-          await selectProductCategory(chatId, userId, userState);
+        } catch (error) {
+          console.error('Description processing error:', error);
+          await bot.sendMessage(chatId, '❌ Error processing description. Please try again.');
         }
         break;
     }
   } catch (error) {
     console.error('Product creation error:', error);
-    await bot.sendMessage(chatId, '❌ An error occurred. Please try again.');
+    await bot.sendMessage(chatId, 
+      '❌ Sorry, there was an unexpected error. Please start over with /sell'
+    );
+    userStates.delete(userId);
   }
-}
+          }
 
 // Select product category
 async function selectProductCategory(chatId, userId, userState) {
