@@ -43,6 +43,21 @@ Start by browsing items or selling yours!`);
 
 botSettings.set('channel_link', CHANNEL_ID);
 
+
+// --- Helper functions for bot username (persisted in botSettings) ---
+function getBotUsername() {
+  // returns with leading @ if available, else empty string
+  const u = botSettings.get('bot_username') || process.env.BOT_USERNAME || '';
+  if (!u) return '';
+  return u.startsWith('@') ? u : '@' + u;
+}
+function getBotUsernameForLink() {
+  // returns without @ suitable for t.me/<username>
+  const u = botSettings.get('bot_username') || process.env.BOT_USERNAME || '';
+  if (!u) return '';
+  return u.startsWith('@') ? u.substring(1) : u;
+}
+// --- end helper ---
 // Categories
 const CATEGORIES = [
   '📚 Academic Books',
@@ -256,7 +271,7 @@ async function handleBrowse(msg) {
   for (const product of approvedProducts) {
     const seller = users.get(product.sellerId);
 
-    const buyNowUrl = `https://t.me/${bot.options.username}?start=product_${product.id}`;
+    const buyNowUrl = `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
 
     const browseKeyboard = {
       reply_markup: {
@@ -1008,7 +1023,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
     // Post to channel
     try {
       const seller = users.get(product.sellerId);
-      const buyNowUrl = `https://t.me/${bot.options.username}?start=product_${product.id}`;
+      const buyNowUrl = `https://t.me/${getBotUsernameForLink()}?start=product_${product.id}`;
 
       const channelKeyboard = {
         reply_markup: {
@@ -1026,7 +1041,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
 `👤 *Seller:* @${product.sellerUsername}\n` +
                    `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
                    `\n📍 *Jimma University Campus*` +
-                   `\n\n🛒 Buy via @${bot.options.username}`,
+                   `\n\n🛒 Buy via @${getBotUsernameForLink()}`,
           parse_mode: 'Markdown',
           reply_markup: channelKeyboard.reply_markup
         });
@@ -1038,7 +1053,7 @@ async function handleAdminApproval(productId, callbackQuery, approve) {
 `👤 *Seller:* @${product.sellerUsername}\n` +
           `${product.description ? `📝 *Description:* ${product.description}\n` : ''}` +
           `\n📍 *Jimma University Campus*` +
-          `\n\n🛒 Buy via @${bot.options.username}`,
+          `\n\n🛒 Buy via @${getBotUsernameForLink()}`,
           { parse_mode: 'Markdown', reply_markup: channelKeyboard.reply_markup }
         );
       }
@@ -1421,6 +1436,19 @@ async function handleAdminCommand(msg, command, args = []) {
         break;
 
       case 'maintenance':
+case 'setbotusername':
+  const newBotUser = args[0];
+  if (!newBotUser) {
+    await bot.sendMessage(chatId,
+      `Current bot username: ${getBotUsername()}\n\nUsage: /setbotusername @YourBotUsername`);
+    return;
+  }
+  // normalize
+  let normalized = newBotUser.startsWith('@') ? newBotUser : '@' + newBotUser;
+  botSettings.set('bot_username', normalized);
+  await bot.sendMessage(chatId, `✅ Bot username updated to ${normalized}`);
+  break;
+
         const action = args[0];
         if (action === 'on') {
           maintenanceMode = true;
